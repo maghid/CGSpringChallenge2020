@@ -6,19 +6,47 @@ import copy
 
 # Grab the pellets as fast as you can!
 
-# Classes
+# Utility methods
 
 def printError(errorString):
     print(errorString, file=sys.stderr)
 
+# Classes
+
 class Position:
     def __init__(self, x, y):
         self.x = x
-        self.y = y  
+        self.y = y
+
     def __eq__(self,other):
         return (self.x == other.x and self.y == other.y)
+
     def __str__(self):
         return ', '.join(['{key}={value}'.format(key=key, value=self.__dict__.get(key)) for key in self.__dict__])
+
+class MoveAction:
+    def __init__(self, pac, dest):
+        self.pac = pac
+        self.dest = dest
+    
+    def __str__(self):
+        return "MOVE " + str(self.pac) + " " + str(self.dest.x) + " " + str(self.dest.y)
+
+class SpeedAction:
+    def __init__(self, pac):
+        self.pac = pac
+    
+    def __str__(self):
+        return "SPEED " + str(self.pac)
+
+class SwitchAction:
+    def __init__(self, pac, newType):
+        self.pac = pac
+        self.newType = newType
+    
+    def __str__(self):
+        return "SWITCH " + str(self.pac) + " " + str(self.newType)
+    
 
 class Grid:
     def __init__(self, width, height):
@@ -35,12 +63,48 @@ class Pac:
         self.typeId = type_id
         self.speedTurnsLeft = speed_turns_left
         self.abilityCooldown = ability_cooldown
-        self.visible = True
+        self.nextMove = None
+    
+    def findClosestPellet(self,pellets,superpellets):
+        destination = (-1,-1)
+        shortestDistance = None
+        if (not superpellets):
+            for p in pellets:
+                distance = getManhattanDistance(self.currentPos.x,self.currentPos.y,p.pos.x,p.pos.y)
+                if (shortestDistance is None or distance < shortestDistance):
+                    shortestDistance = distance
+                    destination = (p.pos.x, p.pos.y)
+                    pellets.remove(p)
+        else:
+            for p in superpellets:
+                distance = getManhattanDistance(self.currentPos.x,self.currentPos.y,p.pos.x,p.pos.y)
+                if (shortestDistance is None or distance < shortestDistance):
+                    shortestDistance = distance
+                    destination = (p.pos.x, p.pos.y)     
+                    superpellets.remove(p)
+        return destination
+
+    def getNextMoveRandomly(self):
+        possibleMoves = []
+        #UP
+        if (gameGrid.rows[(self.currentPos.y+1)%(height-1)][self.currentPos.x] != '#'):
+            possibleMoves.append((self.currentPos.x,(self.currentPos.y+1)%(height-1)))
+        #DOWN
+        if (gameGrid.rows[(self.currentPos.y-1)%(height-1)][self.currentPos.x] != '#') :
+            possibleMoves.append((self.currentPos.x,(self.currentPos.y-1)%(height-1))) 
+        #LEFT
+        if (gameGrid.rows[self.currentPos.y][(self.currentPos.x-1)%(width-1)] != '#') :
+            possibleMoves.append(((self.currentPos.x-1)%(width-1),self.currentPos.y)) 
+        #RIGHT
+        if (gameGrid.rows[self.currentPos.y][(self.currentPos.x+1)%(width-1)] != '#') :
+            possibleMoves.append(((self.currentPos.x+1)%(width-1),self.currentPos.y))
+        return random.choice(possibleMoves)
 
 class Pellet:
     def __init__(self, x, y, value):
         self.pos = Position(x,y)
         self.value = value
+
 
 # width: size of the grid
 # height: top left corner is (x=0, y=0)
@@ -54,25 +118,6 @@ for i in range(height):
 def getManhattanDistance(x1,x2,y1,y2):
     return abs(x1-x2) + abs(y1-y2)
 
-def findClosestPellet(pacX,pacY,pellets,superpellets):
-    destination = (-1,-1)
-    shortestDistance = None
-    if (not superpellets):
-        for p in pellets:
-            distance = getManhattanDistance(pacX,pacY,p.pos.x,p.pos.y)
-            if (shortestDistance is None or distance < shortestDistance):
-                shortestDistance = distance
-                destination = (p.pos.x, p.pos.y)
-                pellets.remove(p)
-    else:
-         for p in superpellets:
-            distance = getManhattanDistance(pacX,pacY,p.pos.x,p.pos.y)
-            if (shortestDistance is None or distance < shortestDistance):
-                shortestDistance = distance
-                destination = (p.pos.x, p.pos.y)     
-                superpellets.remove(p)
-    return destination
-
 def detectCollisions(visiblePacs):
     pacsInCollision = set()
     for pac in visiblePacs:
@@ -81,21 +126,7 @@ def detectCollisions(visiblePacs):
             if (pac.mine): pacsInCollision.add(pac.id)
     return pacsInCollision
 
-def chooseRandomDirection(x,y):
-    possibleMoves = []
-    #UP
-    if (gameGrid.rows[(y+1)%(height-1)][x] != '#'):
-        possibleMoves.append((x,(y+1)%(height-1)))
-    #DOWN
-    if (gameGrid.rows[(y-1)%(height-1)][x] != '#') :
-        possibleMoves.append((x,(y-1)%(height-1))) 
-    #LEFT
-    if (gameGrid.rows[y][(x-1)%(width-1)] != '#') :
-        possibleMoves.append(((x-1)%(width-1),y)) 
-    #RIGHT
-    if (gameGrid.rows[y][(x+1)%(width-1)] != '#') :
-        possibleMoves.append(((x+1)%(width-1),y))
-    return random.choice(possibleMoves)
+
 
 visiblePacs = []
 # game loop
@@ -151,7 +182,7 @@ while True:
     for pac in visiblePacs:
         if (pac.mine):
             if (pac.id in pacsInCollision):
-                nextPos = chooseRandomDirection(pac.currentPos.x, pac.currentPos.y)
+                nextPos = pac.getNextMoveRandomly()
                 singleMoveString = 'MOVE ' + str(pac.id) + ' ' + str(nextPos[0]) + " " + str(nextPos[1])
                 if (allMovesString is not None):
                     allMovesString += ' | ' + singleMoveString
@@ -159,7 +190,7 @@ while True:
                     allMovesString = singleMoveString
             else:
                 # Find closest pellet and move to it
-                nextPos = findClosestPellet(pac.currentPos.x, pac.currentPos.y, visiblePellets, visibleSuperPellets)
+                nextPos = pac.findClosestPellet(visiblePellets, visibleSuperPellets)
                 singleMoveString = 'MOVE ' + str(pac.id) + ' ' + str(nextPos[0]) + " " + str(nextPos[1])
                 if (allMovesString is not None):
                     allMovesString += ' | ' + singleMoveString
