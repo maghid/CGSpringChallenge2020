@@ -63,24 +63,26 @@ class Pac:
         self.typeId = type_id
         self.speedTurnsLeft = speed_turns_left
         self.abilityCooldown = ability_cooldown
-        self.nextMove = None
+        self.nextMove = ""
     
     def findClosestPellet(self,pellets,superpellets):
-        destination = (-1,-1)
+        destination = Position(-1,-1)
         shortestDistance = None
         if (not superpellets):
             for p in pellets:
                 distance = getManhattanDistance(self.currentPos.x,self.currentPos.y,p.pos.x,p.pos.y)
                 if (shortestDistance is None or distance < shortestDistance):
                     shortestDistance = distance
-                    destination = (p.pos.x, p.pos.y)
+                    destination.x = p.pos.x
+                    destination.y = p.pos.y
                     pellets.remove(p)
         else:
             for p in superpellets:
                 distance = getManhattanDistance(self.currentPos.x,self.currentPos.y,p.pos.x,p.pos.y)
                 if (shortestDistance is None or distance < shortestDistance):
                     shortestDistance = distance
-                    destination = (p.pos.x, p.pos.y)     
+                    destination.x = p.pos.x
+                    destination.y = p.pos.y
                     superpellets.remove(p)
         return destination
 
@@ -88,16 +90,16 @@ class Pac:
         possibleMoves = []
         #UP
         if (gameGrid.rows[(self.currentPos.y+1)%(height-1)][self.currentPos.x] != '#'):
-            possibleMoves.append((self.currentPos.x,(self.currentPos.y+1)%(height-1)))
+            possibleMoves.append(Position(self.currentPos.x,(self.currentPos.y+1)%(height-1)))
         #DOWN
         if (gameGrid.rows[(self.currentPos.y-1)%(height-1)][self.currentPos.x] != '#') :
-            possibleMoves.append((self.currentPos.x,(self.currentPos.y-1)%(height-1))) 
+            possibleMoves.append(Position(self.currentPos.x,(self.currentPos.y-1)%(height-1))) 
         #LEFT
         if (gameGrid.rows[self.currentPos.y][(self.currentPos.x-1)%(width-1)] != '#') :
-            possibleMoves.append(((self.currentPos.x-1)%(width-1),self.currentPos.y)) 
+            possibleMoves.append(Position((self.currentPos.x-1)%(width-1),self.currentPos.y)) 
         #RIGHT
         if (gameGrid.rows[self.currentPos.y][(self.currentPos.x+1)%(width-1)] != '#') :
-            possibleMoves.append(((self.currentPos.x+1)%(width-1),self.currentPos.y))
+            possibleMoves.append(Position((self.currentPos.x+1)%(width-1),self.currentPos.y))
         return random.choice(possibleMoves)
 
 class Pellet:
@@ -176,28 +178,19 @@ while True:
 
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr)
-    allMovesString = None
     pacsInCollision = detectCollisions(visiblePacs)
     printError("Pacs in collision: " + str(pacsInCollision))
     for pac in visiblePacs:
         if (pac.mine):
             if (pac.id in pacsInCollision):
                 nextPos = pac.getNextMoveRandomly()
-                singleMoveString = 'MOVE ' + str(pac.id) + ' ' + str(nextPos[0]) + " " + str(nextPos[1])
-                if (allMovesString is not None):
-                    allMovesString += ' | ' + singleMoveString
-                else:
-                    allMovesString = singleMoveString
+                pac.nextMove = MoveAction(pac.id, nextPos)
             else:
                 # Find closest pellet and move to it
                 nextPos = pac.findClosestPellet(visiblePellets, visibleSuperPellets)
-                singleMoveString = 'MOVE ' + str(pac.id) + ' ' + str(nextPos[0]) + " " + str(nextPos[1])
-                if (allMovesString is not None):
-                    allMovesString += ' | ' + singleMoveString
-                else:
-                    allMovesString = singleMoveString
+                pac.nextMove = MoveAction(pac.id, nextPos)
     
-    print(allMovesString)
+    print("|".join(str(pac.nextMove) for pac in visiblePacs))
 
     # MOVE <pacId> <x> <y>  
     #print("MOVE 0 15 10")
