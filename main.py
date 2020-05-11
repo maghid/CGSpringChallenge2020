@@ -66,25 +66,21 @@ class Pac:
         self.nextMove = ""
     
     def findClosestPellet(self,pellets,superpellets):
-        destination = Position(-1,-1)
         shortestDistance = None
+        targetPellet = None
         if (not superpellets):
             for p in pellets:
                 distance = getManhattanDistance(self.currentPos.x,self.currentPos.y,p.pos.x,p.pos.y)
                 if (shortestDistance is None or distance < shortestDistance):
                     shortestDistance = distance
-                    destination.x = p.pos.x
-                    destination.y = p.pos.y
-                    pellets.remove(p)
+                    targetPellet = p
         else:
             for p in superpellets:
                 distance = getManhattanDistance(self.currentPos.x,self.currentPos.y,p.pos.x,p.pos.y)
                 if (shortestDistance is None or distance < shortestDistance):
                     shortestDistance = distance
-                    destination.x = p.pos.x
-                    destination.y = p.pos.y
-                    superpellets.remove(p)
-        return destination
+                    targetPellet = p
+        return targetPellet
 
     def getNextMoveRandomly(self):
         possibleMoves = []
@@ -129,7 +125,8 @@ def detectCollisions(visiblePacs):
     return pacsInCollision
 
 
-
+visiblePellets = set()
+visibleSuperPellets = set()
 visiblePacs = []
 # game loop
 while True:
@@ -165,16 +162,14 @@ while True:
             visiblePacs.append(pac)
 
     visible_pellet_count = int(input())  # all pellets in sight
-    visiblePellets = []
-    visibleSuperPellets = []
     for i in range(visible_pellet_count):
         # value: amount of points this pellet is worth
         x, y, value = [int(j) for j in input().split()]
         pellet = Pellet(x, y, value)
         if (value == 10):
-            visibleSuperPellets.append(pellet)
+            visibleSuperPellets.add(pellet)
         else:
-            visiblePellets.append(pellet)
+            visiblePellets.add(pellet)
 
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr)
@@ -186,9 +181,16 @@ while True:
                 nextPos = pac.getNextMoveRandomly()
                 pac.nextMove = MoveAction(pac.id, nextPos)
             else:
-                # Find closest pellet and move to it
-                nextPos = pac.findClosestPellet(visiblePellets, visibleSuperPellets)
-                pac.nextMove = MoveAction(pac.id, nextPos)
+                if (pac.speedTurnsLeft == 0 and pac.abilityCooldown == 0):
+                    pac.nextMove = SpeedAction(pac.id)
+                else:
+                    # Find closest pellet and move to it
+                    targetPellet = pac.findClosestPellet(visiblePellets, visibleSuperPellets)
+                    nextPos = Position(targetPellet.pos.x, targetPellet.pos.y)
+                    visiblePellets.discard(targetPellet)
+                    visibleSuperPellets.discard(targetPellet)
+                    pac.nextMove = MoveAction(pac.id, nextPos)
+
     
     print("|".join(str(pac.nextMove) for pac in visiblePacs))
 
